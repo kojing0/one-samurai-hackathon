@@ -5,11 +5,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        one: {
+          red:    '#E31937',
+          dark:   '#0A0A0A',
+          card:   '#111111',
+          border: '#222222',
+          muted:  '#888888',
+        },
+        // 後方互換
         samurai: {
-          red: '#C0392B',
-          gold: '#F39C12',
-          dark: '#1A1A2E',
-          navy: '#16213E',
+          red:  '#E31937',
+          gold: '#FFD700',
+          dark: '#0A0A0A',
+          navy: '#111111',
         },
       },
     },

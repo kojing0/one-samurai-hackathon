@@ -8,6 +8,8 @@ interface Props {
   onAnswer: (choiceIndex: number) => void;
 }
 
+const CHOICE_LABELS = ['A', 'B', 'C', 'D'];
+
 export default function QuizQuestion({ quiz, onAnswer }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -21,29 +23,48 @@ export default function QuizQuestion({ quiz, onAnswer }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-samurai-navy rounded-2xl p-6">
-        <p className="text-white text-lg font-medium leading-relaxed">{quiz.question}</p>
+    <div className="space-y-4">
+      {/* 問題文 */}
+      <div
+        className="px-5 py-5 rounded-sm"
+        style={{
+          backgroundColor: 'rgba(20, 20, 20, 0.95)',
+          borderLeft: '3px solid var(--one-red)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
+        }}
+      >
+        <p className="text-white text-[15px] font-semibold leading-relaxed">{quiz.question}</p>
       </div>
 
-      <div className="space-y-3">
-        {quiz.choices.map((choice, index) => (
-          <button
-            key={index}
-            onClick={() => handleSelect(index)}
-            disabled={selected !== null}
-            className={`w-full text-left rounded-xl px-5 py-4 border-2 transition-all font-medium ${
-              selected === index
-                ? 'border-samurai-gold bg-samurai-gold/20 text-samurai-gold'
-                : 'border-white/10 bg-samurai-navy hover:border-samurai-gold/50 hover:bg-samurai-gold/5 text-white'
-            } disabled:cursor-default`}
-          >
-            <span className="text-samurai-gold mr-3 font-bold">
-              {String.fromCharCode(65 + index)}.
-            </span>
-            {choice}
-          </button>
-        ))}
+      {/* 選択肢 */}
+      <div className="space-y-2.5">
+        {quiz.choices.map((choice, index) => {
+          const isSelected = selected === index;
+          return (
+            <button
+              key={index}
+              onClick={() => handleSelect(index)}
+              disabled={selected !== null}
+              className="w-full text-left flex items-center gap-4 px-4 py-4 rounded-sm transition-all disabled:cursor-default"
+              style={{
+                backgroundColor: isSelected ? 'rgba(227, 25, 55, 0.2)' : 'rgba(28, 28, 28, 0.95)',
+                border: `1px solid ${isSelected ? 'var(--one-red)' : 'rgba(255,255,255,0.22)'}`,
+                boxShadow: isSelected ? '0 0 0 1px var(--one-red)' : '0 1px 4px rgba(0,0,0,0.4)',
+              }}
+            >
+              <span
+                className="text-[11px] font-black w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                style={{
+                  backgroundColor: isSelected ? 'var(--one-red)' : 'rgba(255,255,255,0.12)',
+                  color: isSelected ? '#fff' : 'rgba(255,255,255,0.75)',
+                }}
+              >
+                {CHOICE_LABELS[index]}
+              </span>
+              <span className="text-[14px] text-white/90 leading-snug">{choice}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

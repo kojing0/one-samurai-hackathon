@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getFirestore } from '../services/firebase_service.js';
 import { getQuizzesByDifficulty, validateAnswers } from '../services/quiz_service.js';
 import { addStamp } from '../services/sui_service.js';
-import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticate, optionalAuthenticate, type AuthenticatedRequest, type OptionalAuthRequest } from '../middleware/auth.js';
 import { type Difficulty } from '../types/index.js';
 
 const router = Router();
@@ -19,7 +19,7 @@ const SubmitAnswersBody = z.object({
  * GET /quiz/:difficulty
  * 指定難易度のクイズ問題一覧を取得する（正解は含まない）
  */
-router.get('/:difficulty', authenticate, async (req: Request, res: Response): Promise<void> => {
+router.get('/:difficulty', async (req: Request, res: Response): Promise<void> => {
   const difficulty = req.params.difficulty as Difficulty;
 
   if (!VALID_DIFFICULTIES.includes(difficulty)) {
@@ -35,8 +35,8 @@ router.get('/:difficulty', authenticate, async (req: Request, res: Response): Pr
  * POST /quiz/session/start
  * クイズセッションを開始する
  */
-router.post('/session/start', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const uid = (req as AuthenticatedRequest).uid;
+router.post('/session/start', optionalAuthenticate, async (req: Request, res: Response): Promise<void> => {
+  const uid = (req as OptionalAuthRequest).uid ?? null;
 
   const parsed = z.object({ difficulty: z.enum(['beginner', 'intermediate', 'advanced']) }).safeParse(req.body);
   if (!parsed.success) {
@@ -66,8 +66,8 @@ router.post('/session/start', authenticate, async (req: Request, res: Response):
  * POST /quiz/session/answer
  * 全問の回答を送信する。全問正解ならスタンプを付与する
  */
-router.post('/session/answer', authenticate, async (req: Request, res: Response): Promise<void> => {
-  const uid = (req as AuthenticatedRequest).uid;
+router.post('/session/answer', optionalAuthenticate, async (req: Request, res: Response): Promise<void> => {
+  const uid = (req as OptionalAuthRequest).uid ?? null;
 
   const parsed = SubmitAnswersBody.safeParse(req.body);
   if (!parsed.success) {
@@ -78,7 +78,6 @@ router.post('/session/answer', authenticate, async (req: Request, res: Response)
   const { sessionId, answers } = parsed.data;
   const db = getFirestore();
 
-  // セッション取得・UID検証
   const sessionRef = db.collection('quiz_sessions').doc(sessionId);
   const sessionDoc = await sessionRef.get();
 
@@ -99,6 +98,12 @@ router.post('/session/answer', authenticate, async (req: Request, res: Response)
 
   if (!passed) {
     res.json({ passed: false, stampGranted: false, message: '不正解の問題があります。再挑戦してください。' });
+    return;
+  }
+
+  // ゲストの場合はスタンプ付与なしで結果を返す
+  if (!uid) {
+    res.json({ passed: true, stampGranted: false });
     return;
   }
 

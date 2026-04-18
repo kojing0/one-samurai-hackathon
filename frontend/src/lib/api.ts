@@ -27,6 +27,25 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function publicFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = await auth.currentUser?.getIdToken().catch(() => null);
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'エラーが発生しました' }));
+    throw new Error(error.error ?? 'エラーが発生しました');
+  }
+
+  return res.json() as Promise<T>;
+}
+
 export type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 
 export interface Quiz {
@@ -63,22 +82,22 @@ export async function fetchStampCard() {
   return apiFetch<{ stampCard: StampCard }>('/stamp-card');
 }
 
-// クイズ取得
+// クイズ取得（ゲスト・ログイン共通）
 export async function fetchQuizzes(difficulty: Difficulty) {
-  return apiFetch<{ quizzes: Quiz[] }>(`/quiz/${difficulty}`);
+  return publicFetch<{ quizzes: Quiz[] }>(`/quiz/${difficulty}`);
 }
 
-// クイズセッション開始
+// クイズセッション開始（ゲスト・ログイン共通）
 export async function startQuizSession(difficulty: Difficulty) {
-  return apiFetch<{ sessionId: string }>('/quiz/session/start', {
+  return publicFetch<{ sessionId: string }>('/quiz/session/start', {
     method: 'POST',
     body: JSON.stringify({ difficulty }),
   });
 }
 
-// 回答送信
+// 回答送信（ゲスト・ログイン共通）
 export async function submitAnswers(sessionId: string, answers: number[]) {
-  return apiFetch<{
+  return publicFetch<{
     passed: boolean;
     stampGranted: boolean;
     txDigest?: string;
