@@ -54,10 +54,14 @@ module one_samurai::stamp_card {
 
     /// 初回ログイン時: スタンプカードを発行（Sponsored Transaction で呼び出す）
     public fun mint(ctx: &mut TxContext) {
-        let owner = ctx.sender();
+        mint_for(ctx.sender(), ctx);
+    }
+
+    /// Sponsor が代理でユーザーにスタンプカードを発行する（Shared Object として作成）
+    public fun mint_for(recipient: address, ctx: &mut TxContext) {
         let card = StampCard {
             id: object::new(ctx),
-            owner,
+            owner: recipient,
             beginner_stamped: false,
             intermediate_stamped: false,
             advanced_stamped: false,
@@ -66,11 +70,11 @@ module one_samurai::stamp_card {
 
         event::emit(StampCardMinted {
             card_id: object::uid_to_address(&card.id),
-            owner,
+            owner: recipient,
         });
 
-        // Soulbound: ユーザー自身のアドレスにのみ転送
-        transfer::transfer(card, owner);
+        // Shared Object: AdminCap を持つ Sponsor がスタンプを付与できるようにする
+        transfer::share_object(card);
     }
 
     /// クイズクリア時: スタンプ付与（AdminCap が必要）

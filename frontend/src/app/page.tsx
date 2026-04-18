@@ -1,21 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithPopup, onAuthStateChanged, type User } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, GoogleAuthProvider } from 'firebase/auth';
+import { jwtToAddress } from '@mysten/zklogin';
 import { auth, googleProvider } from '@/lib/firebase';
+import { verifyUser } from '@/lib/api';
 import GoogleLoginButton from '@/components/GoogleLoginButton';
+
+// ハッカソン用固定ソルト（本番では per-user のソルトを使用すること）
+const ZKLOGIN_SALT = BigInt(0);
 
 export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ログイン処理中は onAuthStateChanged によるリダイレクトを抑制する
+  const isSigningIn = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
+      if (user && !isSigningIn.current) {
+        // ページリフレッシュ時など、すでに認証済みの場合
         router.push('/stamp-card');
-      } else {
+      } else if (!user) {
         setLoading(false);
       }
     });
@@ -24,11 +33,28 @@ export default function HomePage() {
 
   async function handleGoogleLogin() {
     setError(null);
+    isSigningIn.current = true;
+    setVerifying(true);
+
     try {
-      await signInWithPopup(auth, googleProvider);
-      // onAuthStateChanged が検知してリダイレクト
-    } catch {
+      const result = await signInWithPopup(auth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const googleIdToken = credential?.idToken;
+
+      if (!googleIdToken) throw new Error('Google IDトークンの取得に失敗しました');
+
+      // Google JWT + ソルト → Sui アドレスを導出（zkLogin）
+      const suiAddress = jwtToAddress(googleIdToken, ZKLOGIN_SALT);
+
+      // バックエンドにユーザー登録 & 初回はスタンプカード発行
+      await verifyUser(suiAddress);
+
+      router.push('/stamp-card');
+    } catch (err) {
+      console.error(err);
       setError('ログインに失敗しました。もう一度お試しください。');
+      isSigningIn.current = false;
+      setVerifying(false);
     }
   }
 
@@ -48,11 +74,21 @@ export default function HomePage() {
       </div>
 
       <div className="bg-samurai-navy rounded-2xl p-8 w-full max-w-sm text-center space-y-4">
-        <p className="text-gray-300 text-sm">
-          Googleアカウントでログインすると、Suiブロックチェーン上にスタンプカードが発行されます
-        </p>
-
-        <GoogleLoginButton onClick={handleGoogleLogin} />
+        {verifying ? (
+          <div className="space-y-3">
+            <p className="text-samurai-gold text-sm animate-pulse">
+              Suiブロックチェーンにスタンプカードを発行中...
+            </p>
+            <p className="text-gray-500 text-xs">しばらくお待ちください</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-gray-300 text-sm">
+              Googleアカウントでログインすると、Suiブロックチェーン上にスタンプカードが発行されます
+            </p>
+            <GoogleLoginButton onClick={handleGoogleLogin} />
+          </>
+        )}
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
       </div>

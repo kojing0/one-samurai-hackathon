@@ -31,16 +31,15 @@ router.post('/verify', authenticate, async (req: Request, res: Response): Promis
   const userRef = db.collection('users').doc(uid);
   const userDoc = await userRef.get();
 
-  if (userDoc.exists) {
-    // 既存ユーザー: そのまま返す
+  // 既存ユーザーでもスタンプカードがなければ再発行する
+  if (userDoc.exists && userDoc.data()?.stampCardObjectId) {
     res.json({ user: userDoc.data(), isNew: false });
     return;
   }
 
-  // 初回ユーザー: スタンプカードを発行する
+  // スタンプカードを発行する（新規 or 再発行）
   let stampCardObjectId: string | null = null;
   try {
-    // チェーン上に既存のカードがないか確認
     stampCardObjectId = await findStampCardByOwner(suiAddress);
 
     if (!stampCardObjectId) {
@@ -61,9 +60,9 @@ router.post('/verify', authenticate, async (req: Request, res: Response): Promis
     createdAt: new Date(),
   };
 
-  await userRef.set(newUser);
+  await userRef.set(newUser, { merge: true });
 
-  res.status(201).json({ user: newUser, isNew: true });
+  res.status(201).json({ user: newUser, isNew: !userDoc.exists });
 });
 
 export default router;

@@ -31,12 +31,10 @@ export async function mintStampCard(userAddress: string): Promise<string> {
   const packageId = process.env.SUI_PACKAGE_ID!;
 
   const tx = new Transaction();
-  tx.setSender(userAddress);
-  tx.setGasOwner(sponsor.toSuiAddress());
 
   tx.moveCall({
-    target: `${packageId}::stamp_card::mint`,
-    arguments: [],
+    target: `${packageId}::stamp_card::mint_for`,
+    arguments: [tx.pure.address(userAddress)],
   });
 
   const sponsoredTx = await client.signAndExecuteTransaction({
@@ -123,11 +121,18 @@ export async function findStampCardByOwner(ownerAddress: string): Promise<string
   const client = getSuiClient();
   const packageId = process.env.SUI_PACKAGE_ID!;
 
-  const objects = await client.getOwnedObjects({
-    owner: ownerAddress,
-    filter: { StructType: `${packageId}::stamp_card::StampCard` },
-    options: { showContent: true },
+  const events = await client.queryEvents({
+    query: { MoveEventType: `${packageId}::stamp_card::StampCardMinted` },
+    limit: 50,
+    order: 'descending',
   });
 
-  return objects.data[0]?.data?.objectId ?? null;
+  const match = events.data.find((e) => {
+    const parsed = e.parsedJson as { owner?: string };
+    return parsed.owner === ownerAddress;
+  });
+
+  if (!match) return null;
+  const parsed = match.parsedJson as { card_id: string };
+  return parsed.card_id;
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { fetchStampCard, type StampCard } from '@/lib/api';
 import StampCardComponent from '@/components/StampCard';
@@ -12,6 +12,7 @@ export default function StampCardPage() {
   const [stampCard, setStampCard] = useState<StampCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -20,17 +21,29 @@ export default function StampCardPage() {
         return;
       }
 
+      // 再サブスクライブ時の二重フェッチを防止
+      if (hasFetched.current) return;
+      hasFetched.current = true;
+
       try {
         const data = await fetchStampCard();
         setStampCard(data.stampCard);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        const msg = err instanceof Error ? err.message : 'エラーが発生しました';
+        if (msg.includes('見つかりません')) {
+          await signOut(auth);
+          router.push('/');
+          return;
+        }
+        setError(msg);
       } finally {
         setLoading(false);
       }
     });
+
     return () => unsubscribe();
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLogout() {
     await signOut(auth);
